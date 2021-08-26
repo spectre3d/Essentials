@@ -55,7 +55,10 @@ namespace Xamarin.Essentials
             picker.MediaTypes = new string[] { mediaType };
             picker.AllowsEditing = false;
             if (!photo && !pickExisting)
+            {
                 picker.CameraCaptureMode = UIImagePickerControllerCameraCaptureMode.Video;
+                picker.VideoQuality = UIImagePickerControllerQualityType.High;
+            }
 
             if (!string.IsNullOrWhiteSpace(options?.Title))
                 picker.Title = options.Title;
