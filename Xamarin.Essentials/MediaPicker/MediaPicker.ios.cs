@@ -1,9 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Foundation;
 using MobileCoreServices;
 using Photos;
+using PhotosUI;
 using UIKit;
 
 namespace Xamarin.Essentials
@@ -11,9 +14,13 @@ namespace Xamarin.Essentials
     public static partial class MediaPicker
     {
         static UIImagePickerController picker;
+        static PHPickerViewController photoPicker;
 
         static bool PlatformIsCaptureSupported
             => UIImagePickerController.IsSourceTypeAvailable(UIImagePickerControllerSourceType.Camera);
+
+        static Task<List<FileResult>> PlatformPickPhotosAsync(MediaPickerOptions options)
+            => PhotosAsync(options, true);
 
         static Task<FileResult> PlatformPickPhotoAsync(MediaPickerOptions options)
             => PhotoAsync(options, true, true);
@@ -26,6 +33,63 @@ namespace Xamarin.Essentials
 
         static Task<FileResult> PlatformCaptureVideoAsync(MediaPickerOptions options)
             => PhotoAsync(options, false, false);
+
+        static async Task<List<FileResult>> PhotosAsync(MediaPickerOptions options, bool photo)
+        {
+            await Task.Delay(1);
+
+            var sourceType = UIImagePickerControllerSourceType.PhotoLibrary;
+            var mediaType = photo ? UTType.Image : UTType.Movie;
+
+            if (!UIImagePickerController.IsSourceTypeAvailable(sourceType))
+                throw new FeatureNotSupportedException();
+            if (!UIImagePickerController.AvailableMediaTypes(sourceType).Contains(mediaType))
+                throw new FeatureNotSupportedException();
+
+            // microphone only needed if video will be captured
+            if (!photo)
+                await Permissions.EnsureGrantedAsync<Permissions.Microphone>();
+
+            // Check if picking existing or not and ensure permission accordingly as they can be set independently from each other
+            if (!Platform.HasOSVersion(11, 0))
+                await Permissions.EnsureGrantedAsync<Permissions.Photos>();
+
+            var vc = Platform.GetCurrentViewController(true);
+
+            var filter = photo ? PHPickerFilter.ImagesFilter : PHPickerFilter.VideosFilter;
+
+            var config = new PHPickerConfiguration(PHPhotoLibrary.SharedPhotoLibrary)
+            {
+                Filter = filter,
+                PreferredAssetRepresentationMode = PHPickerConfigurationAssetRepresentationMode.Current,
+                SelectionLimit = 0,
+            };
+
+            photoPicker = new PHPickerViewController(config);
+
+            if (DeviceInfo.Idiom == DeviceIdiom.Tablet &&
+                photoPicker.PopoverPresentationController != null &&
+                vc.View != null)
+                photoPicker.PopoverPresentationController.SourceRect = vc.View.Bounds;
+
+            var tcs = new TaskCompletionSource<List<FileResult>>(photoPicker);
+            photoPicker.Delegate = new PPD
+            {
+                CompletedHandler = res =>
+                    tcs.TrySetResult(PickerResultsToMediaFile(res))
+            };
+
+            await vc.PresentViewControllerAsync(photoPicker, true);
+
+            var result = await tcs.Task;
+
+            await vc.DismissViewControllerAsync(true);
+
+            photoPicker?.Dispose();
+            photoPicker = null;
+
+            return result;
+        }
 
         static async Task<FileResult> PhotoAsync(MediaPickerOptions options, bool photo, bool pickExisting)
         {
@@ -160,6 +224,14 @@ namespace Xamarin.Essentials
             return new PHAssetFileResult(assetUrl, phAsset, originalFilename);
         }
 
+        class PPD : PHPickerViewControllerDelegate
+        {
+            public Action<PHPickerResult[]> CompletedHandler { get; set; }
+
+            public override void DidFinishPicking(PHPickerViewController picker, PHPickerResult[] results) =>
+                CompletedHandler?.Invoke(results?.Length > 0 ? results : null);
+        }
+
         class PhotoPickerDelegate : UIImagePickerControllerDelegate
         {
             public Action<NSDictionary> CompletedHandler { get; set; }
@@ -177,6 +249,52 @@ namespace Xamarin.Essentials
 
             public override void DidDismiss(UIPresentationController presentationController) =>
                 CompletedHandler?.Invoke(null);
+        }
+
+        static List<FileResult> PickerResultsToMediaFile(PHPickerResult[] results)
+        {
+            var ret = new List<FileResult>();
+
+            if (results == null || results.Length == 0)
+                return ret;
+
+            foreach (var r in results)
+            {
+                if (r.ItemProvider == null)
+                    continue;
+
+                ret.Add(new PHPickerFileResult(r.ItemProvider));
+            }
+
+            return ret;
+        }
+
+        class PHPickerFileResult : FileResult
+        {
+            readonly string identifier;
+            readonly NSItemProvider provider;
+
+            internal PHPickerFileResult(NSItemProvider provider)
+            {
+                this.provider = provider;
+                var identifiers = provider?.RegisteredTypeIdentifiers;
+
+                identifier = (identifiers?.Any(i => i.StartsWith(UTType.LivePhoto)) ?? false)
+                    && (identifiers?.Contains(UTType.JPEG) ?? false)
+                    ? identifiers?.FirstOrDefault(i => i == UTType.JPEG)
+                    : identifiers?.FirstOrDefault();
+
+                if (string.IsNullOrWhiteSpace(identifier))
+                    return;
+                FileName = FullPath
+                    = $"{provider?.SuggestedName}.{GetTag(identifier, UTType.TagClassFilenameExtension)}";
+            }
+
+            internal override async Task<Stream> PlatformOpenReadAsync()
+                => (await provider?.LoadDataRepresentationAsync(identifier))?.AsStream();
+
+            protected internal static string GetTag(string identifier, string tagClass)
+            => UTType.CopyAllTags(identifier, tagClass)?.FirstOrDefault();
         }
     }
 }

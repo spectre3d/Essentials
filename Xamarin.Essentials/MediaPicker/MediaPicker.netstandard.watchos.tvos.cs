@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -7,6 +8,9 @@ namespace Xamarin.Essentials
     public static partial class MediaPicker
     {
         static bool PlatformIsCaptureSupported =>
+            throw new NotImplementedInReferenceAssemblyException();
+
+        static Task<List<FileResult>> PlatformPickPhotosAsync(MediaPickerOptions options) =>
             throw new NotImplementedInReferenceAssemblyException();
 
         static Task<FileResult> PlatformPickPhotoAsync(MediaPickerOptions options) =>

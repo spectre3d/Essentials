@@ -12,6 +12,9 @@ namespace Xamarin.Essentials
         static bool PlatformIsCaptureSupported
             => Platform.AppContext.PackageManager.HasSystemFeature(PackageManager.FeatureCameraAny);
 
+        static Task<List<FileResult>> PlatformPickPhotosAsync(MediaPickerOptions options)
+            => throw new NotImplementedInReferenceAssemblyException();
+
         static Task<FileResult> PlatformPickPhotoAsync(MediaPickerOptions options)
             => PlatformPickAsync(options, true);
 

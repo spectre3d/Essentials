@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -8,6 +9,9 @@ namespace Xamarin.Essentials
     {
         public static bool IsCaptureSupported
             => PlatformIsCaptureSupported;
+
+        public static Task<List<FileResult>> PickPhotosAsync(MediaPickerOptions options = null) =>
+            PlatformPickPhotosAsync(options);
 
         public static Task<FileResult> PickPhotoAsync(MediaPickerOptions options = null) =>
             PlatformPickPhotoAsync(options);

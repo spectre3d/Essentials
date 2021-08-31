@@ -11,6 +11,9 @@ namespace Xamarin.Essentials
         static bool PlatformIsCaptureSupported
             => true;
 
+        static Task<List<FileResult>> PlatformPickPhotosAsync(MediaPickerOptions options)
+            => throw new NotImplementedInReferenceAssemblyException();
+
         static Task<FileResult> PlatformPickPhotoAsync(MediaPickerOptions options)
             => PickAsync(options, true);
 
