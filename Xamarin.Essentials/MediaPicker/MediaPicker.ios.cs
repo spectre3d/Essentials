@@ -296,6 +296,5 @@ namespace Xamarin.Essentials
             protected internal static string GetTag(string identifier, string tagClass)
             => UTType.CopyAllTags(identifier, tagClass)?.FirstOrDefault();
         }
-
     }
 }
