@@ -142,9 +142,9 @@ namespace Xamarin.Essentials
 
             if (picker.PresentationController != null)
             {
-                picker.PresentationController.Delegate = new PhotoPickerPresentationControllerDelegate
+                picker.PresentationController.Delegate = new Platform.UIPresentationControllerDelegate
                 {
-                    CompletedHandler = info => GetFileResult(info, tcs)
+                    DismissHandler = () => GetFileResult(null, tcs)
                 };
             }
 
